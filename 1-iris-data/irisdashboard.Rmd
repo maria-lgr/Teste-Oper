@@ -232,7 +232,7 @@ As variáveis são:
 
 </div>
 
-<div style="margin-bottom:25px;">
+<div style="margin-bottom:20px;">
 </div>
 
 ```{r echo=F}
