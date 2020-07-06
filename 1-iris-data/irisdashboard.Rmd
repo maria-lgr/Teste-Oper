@@ -1,0 +1,299 @@
+---
+title: "Análise sobre espécies de flor íris"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: sandstone
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(tidyverse)
+require(highcharter)
+
+# Preparando o banco iris.data
+dados <- read.table("iris.data",sep=",")
+# renomeando variáveis
+colnames(dados) <- c("sepal_length","sepal_width","petal_length","petal_width","species") 
+dados$species <- gsub("Iris-", "", dados$species) #retirando o prefixo "Iris-" das classes por simplicidade
+
+#criando uma tabela com apenas as medidas de comprimento
+tabela_comprimentos <- select(dados,sepal_length,petal_length,species) 
+#criando uma tabela com apenas as medidas de largura
+tabela_larguras <- select(dados,sepal_width,petal_width,species)
+colnames(tabela_comprimentos) <- c("sepal","petal","species") #renomeando as colunas
+colnames(tabela_larguras) <- c("sepal","petal","species")
+tabela_comprimentos$med <- "Comprimento" #criando uma variável com o tipo da medida
+tabela_larguras$med <- "Largura"
+dados_por_medida <- rbind(tabela_comprimentos,tabela_larguras) #criando um novo banco com as tabelas
+
+# criando um dataframe com uma nova variável que classifica se a observação pertence à uma pétala ou uma sépala
+dados_petalas <- select(dados_por_medida,species,med) # criando o df para as pétalas
+dados_petalas$valor <- dados_por_medida$petal
+dados_petalas$parte <- "petal"
+
+dados_sepalas <- select(dados_por_medida,species,med) #criando o df para as sépalas
+dados_sepalas$valor <- dados_por_medida$sepal
+dados_sepalas$parte <- "sepal"
+# juntando os dois df anteriores em um df com as observações classificadas por parte da flor
+dados_por_parte <- rbind(dados_petalas,dados_sepalas)
+
+paleta <- c("#00AFBB", "#E7B800", "#FC4E07")
+# labels para os títulos dos gráficos
+label_med_resumo <- c("media"="Média","var"="Variância","mediana"="Mediana")
+label_parte <- c('petal'='pétalas','sepal'='sépalas')
+```
+
+Dashboard e resultados
+===========
+
+Column {.sidebar data-width=380}
+-----------------------------------------------------------------------
+
+<div style="margin-bottom:15px;">
+</div>
+
+#### **Resultados**
+
+<div style="text-align: justify">
+De acordo com o boxplot e o gráfico de barras para as sépalas, o comprimento das sépalas da espécie Setosa é, em média, menor que o das demais espécies, 
+mas sua largura é maior.
+Com relação às pétalas, podemos ver no scatterplot que ambas medidas da espécie Setosa são bem menores que as das demais, e as da Versicolor são ligeiramente menores
+que as da Virgínica. 
+Além disso,a espécie Virgínica é a que apresenta a maior variância dentre as três em todas as medidas, 
+exceto na largura da sépala, cuja maior variância pertence à espécie Setosa.
+
+De maneira geral, conclui-se que existe diferença entre o tamanho da espécie Setosa e das demais, principalmente com relação à pétala. 
+Já as espécies Versicolor e Virgínica tem tamanhos mais próximos entre si, mas tanto a média quanto a mediana da
+Virgínica superaram as da Versicolor em todas as medidas.
+</div>
+
+```{r, inputs, echo=F}
+# inputs para o boxplot e o gráfico de barra
+
+selectInput('parte', "Parte da flor (gráfico de barras e boxplot)", 
+            choices =c("Sépala"='sepal',"Pétala"='petal'),selected='sepal')
+
+selectInput('med_resumo', "Medida resumo (gráfico de barras)", 
+            choices = c("Média"='media',"Variância"='var',"Mediana"='mediana'),selected='Média')
+```
+
+
+
+Row {.tabset}
+---
+
+### Boxplot
+
+```{r, echo = FALSE}
+
+renderHighchart({
+  
+  # filtrando o df para conter apenas as observações com a parte da flor que o usuário selecionou
+  dados_filtrados <- filter(dados_por_parte,parte==input$parte) 
+  
+  hcboxplot(x = dados_filtrados$valor,  var2=dados_filtrados$species, var=dados_filtrados$med, outliers = F) %>%
+  hc_plotOptions(boxplot = list(tooltip=list(headerFormat="",
+                                             pointFormat='<b>{series.name}</b> <br>
+                                                          Máximo: <b>{point.high}<br>
+                                                          Terceiro quartil: <b>{point.q3}<br>
+                                                          Mediana: <b>{point.median}<br>
+                                                          Primeiro quartil: <b>{point.q1}<br>
+                                                          Mínimo: <b>{point.low}<br>'),
+                                             fillColor=paleta)) %>%
+  hc_colors(paleta) %>%
+  hc_title(text=paste("Distribuição das medidas das",label_parte[[input$parte]])) %>%
+  hc_yAxis(title = list(text = "valor (em cm)"))
+  
+})
+```
+
+### Gráfico de barras
+
+```{r echo = FALSE}
+renderHighchart({
+
+  # criando um novo df com as medidas resumos, em que as os valores podem ser classificados quanto à
+  # medida resumo, medida (largura ou comprimento), à parte da flor e à espécie da flor
+  
+  dados_por_grupo <- dados %>% group_by(species) # agrupando por espécie
+  
+  # usando summarise para calcular as medidas e armazená-las em df's com as classificações citadas acima
+  sepal_comprimento <- summarise(dados_por_grupo,parte="sepal",med='Comprimento',valor=mean(sepal_length))
+  sepal_largura <- summarise(dados_por_grupo,parte="sepal",med='Largura',valor=mean(sepal_width))
+  petal_comprimento <- summarise(dados_por_grupo,parte="petal",med='Comprimento',valor=mean(petal_length))
+  petal_largura <- summarise(dados_por_grupo,parte="petal",med='Largura',valor=mean(petal_width))
+  # criando um df com os df's acima e adicionando a variável referente à medida resumo 
+  tabela_medias <- rbind(sepal_comprimento,sepal_largura,petal_comprimento,petal_largura)
+  tabela_medias <- cbind(tabela_medias,med_resumo='media')
+
+  sepal_comprimento <- summarise(dados_por_grupo,parte="sepal",med='Comprimento',valor=var(sepal_length))
+  sepal_largura <- summarise(dados_por_grupo,parte="sepal",med='Largura',valor=var(sepal_width))
+  petal_comprimento <- summarise(dados_por_grupo,parte="petal",med='Comprimento',valor=var(petal_length))
+  petal_largura <- summarise(dados_por_grupo,parte="petal",med='Largura',valor=var(petal_width))
+  tabela_variancias <- rbind(sepal_comprimento,sepal_largura,petal_comprimento,petal_largura)
+  tabela_variancias <- cbind(tabela_variancias,med_resumo='var')
+
+  sepal_comprimento <- summarise(dados_por_grupo,parte="sepal",med='Comprimento',valor=median(sepal_length))
+  sepal_largura <- summarise(dados_por_grupo,parte="sepal",med='Largura',valor=median(sepal_width))
+  petal_comprimento <- summarise(dados_por_grupo,parte="petal",med='Comprimento',valor=median(petal_length))
+  petal_largura <- summarise(dados_por_grupo,parte="petal",med='Largura',valor=median(petal_width))
+  tabela_medianas <- rbind(sepal_comprimento,sepal_largura,petal_comprimento,petal_largura)
+  tabela_medianas <- cbind(tabela_medianas,med_resumo='mediana')
+
+  # juntando os 3 df's criados acima para criar o df com todas as medidas resumo
+  dados_med_resumo <- rbind(tabela_medias,tabela_variancias,tabela_medianas)
+  
+  # filtrando o banco para conter apenas a parte da flor e a medida resumo que o usuário selecionou
+  dados_med_resumo <- filter(dados_med_resumo,parte==input$parte,med_resumo==input$med_resumo)
+
+  dados_med_resumo %>% 
+    hchart('bar',hcaes(group = 'species', y = 'valor', x = 'med'))%>%
+    hc_colors(paleta) %>%
+    hc_chart(backgroundColor = "white") %>%
+    hc_title(text=paste(label_med_resumo[[input$med_resumo]],"das medidas das",label_parte[[input$parte]])) %>%
+    hc_yAxis(title = list(text = "valor (em cm)"))%>%
+    hc_xAxis(title = list(text = "")) %>%
+    hc_plotOptions(series=list(showInLegend=T))%>%
+    hc_tooltip(headerFormat = "",
+               pointFormat='<b>{series.name}</b><br>
+                          Medida:<b>{point.valor:.1f}')
+  
+})
+```
+
+
+Row {data-width=675}
+----------------
+
+### Scatterplot para medidas das sépalas
+
+```{r echo=FALSE}
+
+dados %>% 
+  hchart('scatter', hcaes(x = sepal_length, y = sepal_width, 
+                          group =species)) %>%
+  hc_colors(paleta)%>%
+  hc_title(text=paste("Comprimento versus largura das sépalas")) %>%
+  hc_xAxis(title = list(text = "comprimento (em cm)")) %>%
+  hc_yAxis(title=list(text="largura (em cm)")) %>%
+  hc_legend(align = "right", verticalAlign = "top",
+                      layout = "vertical", x = 0, y = 100)%>%
+  hc_tooltip(crosshairs = TRUE, headerFormat = "",shared = TRUE,
+             pointFormat='<b>{series.name}</b><br>
+                          Comprimento: <b>{point.petal_length} </b> <br>
+                          Largura: <b>{point.petal_width}')
+
+```
+
+### Scatterplot para medidas das pétalas
+
+```{r, echo=FALSE}
+
+dados %>% 
+  
+  hchart('scatter', hcaes(x = petal_length, y = petal_width, group = species)) %>%
+  hc_colors(paleta)%>%
+  hc_title(text=paste("Comprimento versus largura das pétalas")) %>%
+  hc_xAxis(title = list(text = "comprimento")) %>%
+  hc_yAxis(title=list(text="largura"))%>%
+  hc_legend(align = "right", verticalAlign = "top",
+                      layout = "vertical", x = 0, y = 100) %>%
+  hc_tooltip(crosshairs = TRUE, headerFormat = "",shared = TRUE,
+             pointFormat='<b>{series.name}</b><br>
+                          Comprimento: <b>{point.petal_length} </b> <br>
+                          Largura: <b>{point.petal_width}')
+
+```
+
+Dados
+============
+
+Column {.sidebar data-width=380}
+-----------------------------------------------------------------------
+
+
+<div style="margin-bottom:15px;">
+</div>
+
+#### **Iris data set - Sobre os dados**
+
+<div style="text-align: justify">
+O banco de dados "Iris" foi criado pelo Estatístico Ronald Fisher como parte de seu artigo "The use of multiple measurements in taxonomic problems" publicado em 1936. O banco apresenta observações de 3 espécies de flor íris (*Iris setosa*, *Iris versicolor* e *Iris virginica*), contemplando as medidas (em centímetro) das sépalas e das pétalas. 
+
+As variáveis são:
+
+1. comprimento da sépala (em cm);
+2. largura da sépala (em cm);
+3. comprimento da pétala (em cm);
+4. largura da pétala (em cm); e
+5. a qual espécie pertencem as medidas.
+
+</div>
+
+<div style="margin-bottom:30px;">
+</div>
+
+```{r echo=F}
+
+# input para o usuário escolher quais espécies ele quer ver na tabela
+selectInput("especie","Espécie",choices=c("Todas","setosa","versicolor","virginica"),selected="Todas")
+
+# input para a quantidade de linhas que o usuário deseja ver
+sliderInput("n", "Número de linhas",min = 0, max = 150, value = 15)
+
+# aqui faço o update do limite máximo do slider para que ele diminua de 150 para 50, caso o usuário deseje # visualizar apenas uma das espécies em vez de todas
+observeEvent(input$especie,{
+  
+  if(input$especie!="Todas"){
+    maximo <- 50
+  } else {
+    maximo <- 150
+  }
+  
+  updateSliderInput(session, "n",
+                    min=0,
+                    max=maximo,
+                    value=15,
+                    step=1
+  )
+
+})
+```
+
+<div style="margin-bottom:50px;">
+</div>
+
+<font size="2">
+Fonte: https://archive.ics.uci.edu/ml/datasets/iris
+</font>
+
+
+
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Banco de dados {data-width=400}
+
+
+```{r echo=F}
+
+renderTable({
+  
+  # usando o if else para filtrar o df por espécie (ou não)
+  if(input$especie=="Todas"){
+    dados_head <- dados 
+  } 
+  else {
+    dados_head <- filter(dados,species==input$especie)
+  }
+  
+  # usando o head() para mostrar apenas o número de linhas definido pelo usuário
+  head(dados_head,as.numeric(input$n))
+
+})
+
+```
