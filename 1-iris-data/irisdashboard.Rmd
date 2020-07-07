@@ -54,6 +54,17 @@ Column {.sidebar data-width=380}
 <div style="margin-bottom:15px;">
 </div>
 
+
+```{r, inputs, echo=F}
+# inputs para o boxplot e o gráfico de barra
+
+selectInput('parte', "Parte da flor (gráfico de barras e boxplot)", 
+            choices =c("Sépala"='sepal',"Pétala"='petal'),selected='sepal')
+
+selectInput('med_resumo', "Medida resumo (gráfico de barras)", 
+            choices = c("Média"='media',"Variância"='var',"Mediana"='mediana'),selected='Média')
+```
+
 #### **Resultados**
 
 <div style="text-align: justify">
@@ -68,16 +79,6 @@ De maneira geral, conclui-se que existe diferença entre o tamanho da espécie S
 Já as espécies Versicolor e Virgínica tem tamanhos mais próximos entre si, mas tanto a média quanto a mediana da
 Virgínica superaram as da Versicolor em todas as medidas.
 </div>
-
-```{r, inputs, echo=F}
-# inputs para o boxplot e o gráfico de barra
-
-selectInput('parte', "Parte da flor (gráfico de barras e boxplot)", 
-            choices =c("Sépala"='sepal',"Pétala"='petal'),selected='sepal')
-
-selectInput('med_resumo', "Medida resumo (gráfico de barras)", 
-            choices = c("Média"='media',"Variância"='var',"Mediana"='mediana'),selected='Média')
-```
 
 
 
@@ -255,7 +256,7 @@ observeEvent(input$especie,{
   updateSliderInput(session, "n",
                     min=0,
                     max=maximo,
-                    value=15,
+                    value=10,
                     step=1
   )
 
